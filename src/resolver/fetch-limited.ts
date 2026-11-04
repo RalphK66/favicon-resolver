@@ -11,6 +11,8 @@ export type FetchedBody = {
   /** Final URL after redirects. */
   url: URL
   body: Uint8Array
+  /** False for a 4xx/5xx body returned because `allowErrorStatus` was set. */
+  ok: boolean
 }
 
 type FetchLimitedOptions = {
@@ -19,6 +21,11 @@ type FetchLimitedOptions = {
   maxBytes: number
   /** Keep the first `maxBytes` instead of failing (HTML: icons are declared in `<head>`). */
   truncate?: boolean
+  /**
+   * Also return the body of 4xx/5xx answers. Apps behind a login often send their usual HTML,
+   * icon links included, on their 401, 403, and 404 pages.
+   */
+  allowErrorStatus?: boolean
   signal: AbortSignal
 }
 
@@ -58,7 +65,8 @@ const readCapped = async (response: Response, options: FetchLimitedOptions) => {
 
 /**
  * GET with redirects followed by hand, so every hop is checked with `isFetchableUrl` before it is
- * requested. Non-2xx answers, oversized bodies, timeouts, and network errors all return null.
+ * requested. Oversized bodies, timeouts, network errors, and (unless `allowErrorStatus`) non-2xx
+ * answers all return null.
  */
 export const fetchLimited = async (
   input: URL,
@@ -90,13 +98,13 @@ export const fetchLimited = async (
       continue
     }
 
-    if (!response.ok) {
+    if (!response.ok && !options.allowErrorStatus) {
       void response.body?.cancel().catch(() => undefined)
       return null
     }
 
     const body = await readCapped(response, options).catch(() => null)
-    return body ? { url, body } : null
+    return body ? { url, body, ok: response.ok } : null
   }
   return null
 }

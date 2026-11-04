@@ -81,6 +81,63 @@ describe('resolveFavicon', () => {
     expect(requested.some(url => /169\.254|10\.0\.0\.1/.test(url))).toBe(false)
   })
 
+  it('reads icons from the HTML error page /favicon.ico returns (TeamCity behind a login)', async () => {
+    const apple = [57, 60, 72, 76, 114, 120, 144, 152, 180]
+      .map(
+        px => `<link rel="apple-touch-icon" sizes="${px}x${px}" href="/img/icons/apple-${px}.png">`
+      )
+      .join('')
+    const { fetch } = fakeFetch({
+      'https://ci.example.com/': { status: 401, body: 'Authentication required' },
+      'https://ci.example.com/favicon.ico': {
+        status: 404,
+        body: `<!DOCTYPE html><html><head><link rel="Shortcut Icon" href="/img/icons/favicon.ico?v10" sizes="16x16 32x32">${apple}</head></html>`,
+      },
+      // The apple-touch icons it lists are all missing; only the favicon exists.
+      'https://ci.example.com/img/icons/favicon.ico?v10': {
+        body: new Uint8Array([0, 0, 1, 0, 2, 0, 32, 32]),
+      },
+    })
+    expect(await resolveFavicon('ci.example.com', { fetch })).toMatchObject({
+      type: 'ico',
+      source: 'site',
+    })
+  })
+
+  it('reads icon links from a 401 or 403 home page', async () => {
+    const { fetch } = fakeFetch({
+      'https://app.example.com/': {
+        status: 403,
+        body: '<html><head><link rel="icon" href="/brand.svg"></head></html>',
+      },
+      'https://app.example.com/brand.svg': { body: svg },
+    })
+    expect(await resolveFavicon('app.example.com', { fetch })).toMatchObject({ type: 'svg' })
+  })
+
+  it('stops trying a kind of icon after two failures', async () => {
+    const dead = Array.from(
+      { length: 9 },
+      (_, index) => `<link rel="apple-touch-icon" href="/a${index}.png">`
+    )
+    const { fetch, requested } = fakeFetch({
+      'https://example.com/': html(
+        `${dead.join('')}<link rel="icon" href="/real.png" sizes="16x16">`
+      ),
+      'https://example.com/real.png': { body: pngBytes(16, 16) },
+    })
+    expect(await resolveFavicon('example.com', { fetch })).toMatchObject({ type: 'png' })
+    expect(requested.filter(url => /\/a\d\.png$/.test(url))).toHaveLength(2)
+  })
+
+  it('does not accept an image served with an error status', async () => {
+    const { fetch } = fakeFetch({
+      'https://example.com/': html(''),
+      'https://example.com/favicon.ico': { status: 404, body: pngBytes(64, 64) },
+    })
+    expect(await resolveFavicon('example.com', { fetch, siteOnly: true })).toBeNull()
+  })
+
   it('falls back to Google, but not to its 16px placeholder', async () => {
     const found = fakeFetch({ [google('example.com')]: { body: pngBytes(64, 64) } })
     expect(await resolveFavicon('example.com', { fetch: found.fetch })).toMatchObject({

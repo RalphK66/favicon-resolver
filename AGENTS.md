@@ -9,7 +9,7 @@ or 404. See `README.md` for behavior and the safety rules.
 - `routes/index.ts` — plain-text usage
 - `src/resolver/` — runtime-agnostic logic (no Cloudflare imports). `resolveFavicon` takes an
   injectable `fetch`; tests use `fake-fetch.ts` and never touch the network
-- `src/cache.ts` — KV read/write (`icon:v1:` prefix; bump it to drop old entries)
+- `src/cache.ts` — KV read/write (`icon:v2:` prefix; bump it to drop old entries)
 - `src/http.ts` — response headers and the referrer allow-list
 - `env.ts` — `ALLOWED_REFERRERS`
 - `src/resolver/fake-fetch.ts` — test helper (fake `fetch` and PNG bytes), not used at runtime

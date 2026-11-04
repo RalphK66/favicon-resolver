@@ -28,16 +28,21 @@ The `X-Favicon-Source` header says where the icon came from: `site` or `google`.
 
 ## How an icon is chosen
 
-1. Fetch the home page (`https://`, then `http://`, then `https://www.`), following redirects.
+1. Fetch the home page (`https://`, then `http://`, then `https://www.`), following redirects. If
+   none answers successfully, use the first error page: apps behind a login often still send
+   their usual HTML, icon links included, with a 401 or 403.
 2. Read `<link rel="icon">`, `<link rel="apple-touch-icon">`, and `<base href>` from `<head>`,
    resolving relative URLs against the final page URL.
 3. If nothing large or scalable is declared, read the web app manifest's icons.
 4. Rank them: a raster of 64px or more (smallest first), then SVG, then apple-touch and manifest
-   icons, then icons with no declared size, then smaller rasters. Try up to five, then
-   `/favicon.ico`.
-5. Accept a response only if its bytes are a real image. Many sites answer a missing icon with an
-   HTML page and status 200.
-6. If the site gives nothing, ask Google's favicon service, ignoring its 16px placeholder globe.
+   icons, then icons with no declared size, then smaller rasters. Try them best first, giving up on
+   a kind after two failures (some apps list icons that do not exist).
+5. Try `/favicon.ico`. If it answers with an HTML page instead of an image (often the app's 404
+   page), read the icons that page declares. TeamCity behind a login works this way: its home page
+   is a bare 401, but its 404 page names its icon.
+6. Accept a response only if it succeeded and its bytes are a real image. Many sites answer a
+   missing icon with an HTML page and status 200.
+7. If the site gives nothing, ask Google's favicon service, ignoring its 16px placeholder globe.
 
 Found icons are cached for 30 days, misses for 7. Browsers cache icons for 7 days and misses for 1.
 

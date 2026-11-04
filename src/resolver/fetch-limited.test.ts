@@ -59,6 +59,16 @@ describe('fetchLimited', () => {
     expect(truncated?.body.byteLength).toBe(100)
   })
 
+  it('returns error pages when asked, marked as not ok', async () => {
+    const { fetch } = fakeFetch({ 'https://example.com/': { status: 401, body: 'login' } })
+    const result = await fetchLimited(new URL('https://example.com/'), {
+      ...options(fetch),
+      allowErrorStatus: true,
+    })
+    expect(result?.ok).toBe(false)
+    expect(new TextDecoder().decode(result?.body)).toBe('login')
+  })
+
   it('returns null for error statuses and network failures', async () => {
     const { fetch } = fakeFetch({ 'https://example.com/': { status: 500, body: 'oops' } })
     expect(await fetchLimited(new URL('https://example.com/'), options(fetch))).toBeNull()

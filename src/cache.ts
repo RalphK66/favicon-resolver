@@ -3,7 +3,7 @@ import { type ImageType } from './resolver/sniff'
 import { FOUND_TTL_SECONDS, MISSING_TTL_SECONDS } from './http'
 
 /** Bump to ignore everything cached by an older version. */
-const KEY_PREFIX = 'icon:v1:'
+const KEY_PREFIX = 'icon:v2:'
 
 type Metadata = { type: ImageType | null; source: ResolvedIcon['source'] | null }
 
