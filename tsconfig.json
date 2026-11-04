@@ -1,0 +1,14 @@
+{
+  "extends": "./.void/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["void/env"],
+    "lib": ["ESNext"]
+  },
+  "include": ["src", "routes", "env.ts", "vite.config.ts", "void.config.ts"]
+}

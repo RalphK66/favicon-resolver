@@ -1,0 +1,27 @@
+allowBuilds:
+  better-sqlite3: false
+  esbuild: true
+  sharp: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@void/deploy-cloudflare@1.6.1'
+  - '@void/deploy-core@1.6.1'
+  - '@void/edge@1.6.1'
+  - '@void/isr@1.6.1'
+  - '@void/platform@1.6.1'
+  - '@voidzero-dev/vite-plus-core@1.5.0'
+  - '@voidzero-dev/vite-plus-darwin-arm64@1.5.0'
+  - '@voidzero-dev/vite-plus-darwin-x64@1.5.0'
+  - '@voidzero-dev/vite-plus-linux-arm64-gnu@1.5.0'
+  - '@voidzero-dev/vite-plus-linux-arm64-musl@1.5.0'
+  - '@voidzero-dev/vite-plus-linux-x64-gnu@1.5.0'
+  - '@voidzero-dev/vite-plus-linux-x64-musl@1.5.0'
+  - '@voidzero-dev/vite-plus-win32-arm64-msvc@1.5.0'
+  - '@voidzero-dev/vite-plus-win32-x64-msvc@1.5.0'
+  - vite-plus@1.5.0
+  - void@1.6.1
+overrides:
+  vite@*: npm:@voidzero-dev/vite-plus-core@^1.5.0
+peerDependencyRules:
+  allowedVersions:
+    vite: '*'
