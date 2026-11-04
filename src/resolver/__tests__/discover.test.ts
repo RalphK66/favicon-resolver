@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 
-import { iconsFromHtml, iconsFromManifest, largestSize, parseHeadTags } from './discover'
+import { iconsFromHtml, iconsFromManifest, largestSize, parseHeadTags } from '../discover'
 
 const page = new URL('https://example.com/docs/intro')
 const hrefs = (html: string, url = page) => iconsFromHtml(html, url).candidates.map(c => c.url.href)
@@ -80,6 +80,32 @@ describe('iconsFromHtml', () => {
       '/32.png',
       '/16.png',
     ])
+  })
+
+  it('ranks icons declared for dark colour schemes after the others', () => {
+    const html = `
+      <link rel="icon" href="/dark.svg" media="(prefers-color-scheme: dark)">
+      <link rel="icon" href="/light.svg" media="(prefers-color-scheme: light)">
+      <link rel="icon" href="/dark.png" sizes="64x64" media="(prefers-color-scheme: dark)">
+      <link rel="icon" href="/any.svg">`
+    expect(hrefs(html).map(href => new URL(href).pathname)).toEqual([
+      '/dark.png',
+      '/light.svg',
+      '/any.svg',
+      '/dark.svg',
+    ])
+  })
+
+  it('ranks rasters against the requested size', () => {
+    const html = `
+      <link rel="icon" href="/16.png" sizes="16x16">
+      <link rel="icon" href="/32.png" sizes="32x32">
+      <link rel="icon" href="/logo.svg">`
+    const paths = (target: number) =>
+      iconsFromHtml(html, page, target).candidates.map(c => c.url.pathname)
+    expect(paths(16)).toEqual(['/16.png', '/32.png', '/logo.svg'])
+    expect(paths(32)).toEqual(['/32.png', '/logo.svg', '/16.png'])
+    expect(paths(128)).toEqual(['/logo.svg', '/32.png', '/16.png'])
   })
 
   it('keeps data: icons and drops javascript: and other schemes', () => {

@@ -1,4 +1,5 @@
-export const TARGET_SIZE = 64
+/** Preferred icon side in px when the caller gives none. */
+export const DEFAULT_TARGET_SIZE = 64
 
 export type IconCandidate = {
   url: URL
@@ -6,6 +7,8 @@ export type IconCandidate = {
   rank: number
   /** Largest declared side in px; 0 when unknown. */
   size: number
+  /** Declared for dark colour schemes only; ranked after light or scheme-less icons. */
+  dark: boolean
 }
 
 type Tag = Record<string, string>
@@ -94,26 +97,35 @@ export const resolveHref = (href: string, base: URL): URL | null => {
  * Ranks an icon: a raster at or above the target size (smallest first) beats an SVG, which beats
  * apple-touch and manifest icons, then icons without a declared size, then smaller rasters.
  */
-export const rankIcon = (props: { href: string; sizes: string; type: string; kind: Kind }) => {
-  const { href, sizes, type, kind } = props
+export const rankIcon = (props: {
+  href: string
+  sizes: string
+  type: string
+  kind: Kind
+  media?: string
+  target: number
+}) => {
+  const { href, sizes, type, kind, media = '', target } = props
   const size = largestSize(sizes)
-  if (size === 'any' || isSvg(href, type)) return { rank: 1, size: 0 }
-  if (kind === 'apple') return { rank: 2, size: size || 180 }
-  if (kind === 'manifest') return size >= TARGET_SIZE ? { rank: 2, size } : { rank: 4, size }
-  if (size >= TARGET_SIZE) return { rank: 0, size }
-  if (size === 0) return { rank: 3, size: 0 }
-  return { rank: 4, size }
+  const dark = /\bdark\b/i.test(media)
+  if (size === 'any' || isSvg(href, type)) return { rank: 1, size: 0, dark }
+  if (kind === 'apple') return { rank: 2, size: size || 180, dark }
+  if (kind === 'manifest') return size >= target ? { rank: 2, size, dark } : { rank: 4, size, dark }
+  if (size >= target) return { rank: 0, size, dark }
+  if (size === 0) return { rank: 3, size: 0, dark }
+  return { rank: 4, size, dark }
 }
 
 export const sortCandidates = (candidates: IconCandidate[]) =>
   candidates.toSorted((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank
+    if (a.dark !== b.dark) return Number(a.dark) - Number(b.dark)
     // At or above the target, prefer the smallest; below it, prefer the largest.
     return a.rank === 4 ? b.size - a.size : a.size - b.size
   })
 
 /** Icon candidates declared by an HTML page, best first, plus the manifest URL when there is one. */
-export const iconsFromHtml = (html: string, pageUrl: URL) => {
+export const iconsFromHtml = (html: string, pageUrl: URL, target = DEFAULT_TARGET_SIZE) => {
   const { links, baseHref } = parseHeadTags(html)
   const base = (baseHref && resolveHref(baseHref, pageUrl)) || pageUrl
 
@@ -131,7 +143,14 @@ export const iconsFromHtml = (html: string, pageUrl: URL) => {
     }
     candidates.push({
       url,
-      ...rankIcon({ href, sizes: link.sizes ?? '', type: link.type ?? '', kind }),
+      ...rankIcon({
+        href,
+        sizes: link.sizes ?? '',
+        type: link.type ?? '',
+        media: link.media,
+        kind,
+        target,
+      }),
     })
   }
   return { candidates: sortCandidates(candidates), manifestUrl }
@@ -162,7 +181,11 @@ const manifestIcons = (json: unknown): ManifestIcon[] => {
 }
 
 /** Icon candidates from a web app manifest. Maskable-only icons are skipped (launcher padding). */
-export const iconsFromManifest = (text: string, manifestUrl: URL): IconCandidate[] => {
+export const iconsFromManifest = (
+  text: string,
+  manifestUrl: URL,
+  target = DEFAULT_TARGET_SIZE
+): IconCandidate[] => {
   let json: unknown
   try {
     json = JSON.parse(text)
@@ -173,6 +196,6 @@ export const iconsFromManifest = (text: string, manifestUrl: URL): IconCandidate
     if (!icon.purpose.toLowerCase().split(/\s+/).includes('any')) return []
     const url = resolveHref(icon.src, manifestUrl)
     if (!url) return []
-    return [{ url, ...rankIcon({ ...icon, href: icon.src, kind: 'manifest' }) }]
+    return [{ url, ...rankIcon({ ...icon, href: icon.src, kind: 'manifest', target }) }]
   })
 }

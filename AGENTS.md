@@ -5,14 +5,21 @@ or 404. See `README.md` for behavior and the safety rules.
 
 ## Layout
 
-- `routes/[hostname].ts` — the endpoint: referrer check, KV cache, resolve
+- `routes/[...target].ts` — the endpoint; a thin wrapper that hands the request and bindings to
+  `serveIcon`
 - `routes/index.ts` — plain-text usage
-- `src/resolver/` — runtime-agnostic logic (no Cloudflare imports). `resolveFavicon` takes an
-  injectable `fetch`; tests use `fake-fetch.ts` and never touch the network
-- `src/cache.ts` — KV read/write (`icon:v2:` prefix; bump it to drop old entries)
-- `src/http.ts` — response headers and the referrer allow-list
+- `src/resolver/` — the library: finds a site's icon. Runtime-agnostic, no Cloudflare or Void
+  imports. `resolveFavicon` takes an injectable `fetch`
+- `src/worker/` — what the Worker adds around the library
+  - `serve.ts` — `serveIcon`: referrer check, hostname parsing, `?size=`, KV cache, resolve,
+    ETag/304. Takes the KV store as a parameter, so it is tested without Cloudflare
+  - `cache.ts` — KV read/write (`icon:v3:<size>:<hostname>`; bump the prefix whenever a change
+    should invalidate what is already cached)
+  - `http.ts` — response headers, ETags, and the referrer allow-list
 - `env.ts` — `ALLOWED_REFERRERS`
-- `src/resolver/fake-fetch.ts` — test helper (fake `fetch` and PNG bytes), not used at runtime
+- Tests live in a `__tests__/` folder next to the code they test, together with their test-only
+  helpers (`resolver/__tests__/fake-fetch.ts`, `worker/__tests__/fake-kv.ts`). Nothing in a
+  `__tests__/` folder is used at runtime
 
 ## Deployment
 
@@ -33,14 +40,19 @@ git email is a work address; never commit with it here.
 
 - Every URL the Worker fetches goes through `fetchLimited`, which checks `isFetchableUrl` on each
   hop. Never call `fetch` on a site-provided URL directly.
-- Serve only bytes that `sniffImage` recognises, with the headers from `src/http.ts`.
+- Pages (home page, `/favicon.ico`) are fetched with `sameSiteAs`, so they are only ever read from
+  the requested site; icon files may live anywhere (CDNs).
+- Serve only bytes that `sniffImage` recognises, with the headers from `src/http.ts`. Keep the
+  `Accept` header for icons limited to formats `sniffImage` knows.
+- A miss is cached in KV only when the site answered (`reason: 'none'`); an unanswered lookup is
+  returned with a short browser cache and resolved again next time.
 - Keep `src/resolver/` free of Cloudflare and Void imports.
 
 ## Conventions
 
 - Types only, no interfaces; no enums (`as const` + `keyof typeof`); arrow functions only
 - Parameters `(props: Type)` then destructure inside, for functions with several named options
-- Tests next to the code (`*.test.ts`), `vp test`
+- Tests in `__tests__/` next to the code (`<module>.test.ts`), `vp test`
 
 ## Commands
 

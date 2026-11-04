@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test'
 
 import { fakeFetch } from './fake-fetch'
-import { fetchLimited } from './fetch-limited'
+import { fetchLimited } from '../fetch-limited'
 
 const options = (fetch: ReturnType<typeof fakeFetch>['fetch'], maxBytes = 1024) => ({
   fetch,
@@ -21,6 +21,7 @@ describe('fetchLimited', () => {
     const result = await fetchLimited(new URL('http://example.com/'), options(fetch))
     expect(result?.url.href).toBe('https://www.example.com/')
     expect(new TextDecoder().decode(result?.body)).toBe('hello')
+    expect(result?.truncated).toBe(false)
   })
 
   it.each([
@@ -57,6 +58,7 @@ describe('fetchLimited', () => {
       truncate: true,
     })
     expect(truncated?.body.byteLength).toBe(100)
+    expect(truncated?.truncated).toBe(true)
   })
 
   it('returns error pages when asked, marked as not ok', async () => {
@@ -74,5 +76,19 @@ describe('fetchLimited', () => {
     expect(await fetchLimited(new URL('https://example.com/'), options(fetch))).toBeNull()
     const failing = async () => Promise.reject(new Error('offline'))
     expect(await fetchLimited(new URL('https://example.com/'), options(failing))).toBeNull()
+  })
+
+  it('with sameSiteAs, never requests another site, not even the first hop', async () => {
+    const { fetch, requested } = fakeFetch({
+      'https://example.com/': redirect('https://login.example/'),
+      'https://login.example/': { body: 'login' },
+      'https://www.example.com/': { body: 'home' },
+    })
+    const sameSite = { ...options(fetch), sameSiteAs: 'example.com' }
+    expect(await fetchLimited(new URL('https://example.com/'), sameSite)).toBeNull()
+    expect(await fetchLimited(new URL('https://login.example/'), sameSite)).toBeNull()
+    expect(requested).toEqual(['https://example.com/'])
+    const home = await fetchLimited(new URL('https://www.example.com/'), sameSite)
+    expect(new TextDecoder().decode(home?.body)).toBe('home')
   })
 })

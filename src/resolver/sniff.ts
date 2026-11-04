@@ -4,6 +4,7 @@ const IMAGE_TYPES = {
   gif: 'image/gif',
   jpeg: 'image/jpeg',
   webp: 'image/webp',
+  avif: 'image/avif',
   svg: 'image/svg+xml',
 } as const
 
@@ -14,12 +15,14 @@ export const contentTypeOf = (type: ImageType) => IMAGE_TYPES[type]
 const startsWith = (data: Uint8Array, bytes: number[], at = 0) =>
   data.length >= at + bytes.length && bytes.every((byte, index) => data[at + index] === byte)
 
+const ascii = (text: string) => Array.from(text, char => char.charCodeAt(0))
+
 const looksLikeSvg = (data: Uint8Array) => {
   const head = new TextDecoder()
     .decode(data.subarray(0, 1024))
     .replace(/^\uFEFF/, '')
     .trimStart()
-  return /^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/i.test(head)
+  return /^(?:<\?xml[^>]*>\s*)?(?:(?:<!--[\s\S]*?-->|<!doctype[^>]*>)\s*)*<svg[\s>]/i.test(head)
 }
 
 /**
@@ -29,18 +32,15 @@ const looksLikeSvg = (data: Uint8Array) => {
 export const sniffImage = (data: Uint8Array): ImageType | null => {
   if (startsWith(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png'
   if (startsWith(data, [0x00, 0x00, 0x01, 0x00]) && data.length > 6) return 'ico'
-  if (startsWith(data, [0x47, 0x49, 0x46, 0x38])) return 'gif'
+  if (startsWith(data, ascii('GIF8'))) return 'gif'
   if (startsWith(data, [0xff, 0xd8, 0xff])) return 'jpeg'
-  if (startsWith(data, [0x52, 0x49, 0x46, 0x46]) && startsWith(data, [0x57, 0x45, 0x42, 0x50], 8)) {
-    return 'webp'
+  if (startsWith(data, ascii('RIFF')) && startsWith(data, ascii('WEBP'), 8)) return 'webp'
+  if (
+    startsWith(data, ascii('ftyp'), 4) &&
+    (startsWith(data, ascii('avif'), 8) || startsWith(data, ascii('avis'), 8))
+  ) {
+    return 'avif'
   }
   if (looksLikeSvg(data)) return 'svg'
   return null
-}
-
-/** Width and height from a PNG's IHDR chunk. */
-export const pngSize = (data: Uint8Array) => {
-  if (sniffImage(data) !== 'png' || data.length < 24) return null
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
-  return { width: view.getUint32(16), height: view.getUint32(20) }
 }

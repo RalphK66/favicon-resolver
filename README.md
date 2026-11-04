@@ -15,14 +15,21 @@ Workers free plan.
 
 ## API
 
-`GET /<hostname>`, for example `/github.com` or `/docs.example.com`.
+`GET /<hostname>`, for example `/github.com` or `/docs.example.com`. A full URL or a path works
+too (`/https://github.com/user/repo`, `/github.com/user/repo`): only the hostname is used. Names
+with non-ASCII letters (`münchen.de`) are accepted.
 
 | Status | Meaning                                                                         |
 | ------ | ------------------------------------------------------------------------------- |
-| 200    | The icon, as the site serves it: SVG, PNG, ICO, GIF, JPEG, or WebP              |
+| 200    | The icon, as the site serves it: SVG, PNG, ICO, GIF, JPEG, WebP, or AVIF        |
+| 304    | Unchanged since the `ETag` the browser sent in `If-None-Match`                  |
 | 404    | No icon found. Show your own fallback (`<img onerror>`)                         |
 | 400    | Not a public hostname (IP addresses, `localhost`, `.local`, `.internal`, …)     |
 | 403    | `ALLOWED_REFERRERS` is set and the request came from another site               |
+
+`?size=<px>` says how large the icon will be shown (default 64): the smallest declared raster at
+or above it wins, so a 16px list gets a 16px or 32px icon rather than a 180px one. The value is
+rounded up to 16, 32, 64, 128, or 256; each is cached separately.
 
 The `X-Favicon-Source` header says where the icon came from: `site` or `google`.
 
@@ -30,24 +37,31 @@ The `X-Favicon-Source` header says where the icon came from: `site` or `google`.
 
 1. Fetch the home page (`https://`, then `http://`, then `https://www.`), following redirects. If
    none answers successfully, use the first error page: apps behind a login often still send
-   their usual HTML, icon links included, with a 401 or 403. Icons only ever come from the
-   requested site: if the home page redirects to another site (usually a login page, such as
-   `id.atlassian.com` or an Okta or Microsoft sign-in), that page is ignored, so a bookmark never
-   gets the login provider's logo.
+   their usual HTML, icon links included, with a 401 or 403. Pages are only ever read from the
+   requested site: a redirect to another site (usually a login page, such as `id.atlassian.com`
+   or an Okta or Microsoft sign-in) counts as no answer, so the next origin is tried and a
+   bookmark never gets the login provider's logo. Subdomains count as the same site, and
+   `example.com` ↔ `www.example.com`, but not other parents: `app.vercel.app` redirecting to
+   `vercel.app` would give the platform's icon.
 2. Read `<link rel="icon">`, `<link rel="apple-touch-icon">`, and `<base href>` from `<head>`,
    resolving relative URLs against the final page URL.
 3. If nothing large or scalable is declared, read the web app manifest's icons.
-4. Rank them: a raster of 64px or more (smallest first), then SVG, then apple-touch and manifest
-   icons, then icons with no declared size, then smaller rasters. Try them best first, giving up on
-   a kind after two failures (some apps list icons that do not exist).
-5. Try `/favicon.ico` on the requested site. If it answers with an HTML page instead of an image (often the app's 404
-   page), read the icons that page declares. TeamCity behind a login works this way: its home page
-   is a bare 401, but its 404 page names its icon.
+4. Rank them: a raster at or above the requested size (smallest first), then SVG, then apple-touch
+   and manifest icons, then icons with no declared size, then smaller rasters. Icons declared for
+   dark colour schemes only (`media="(prefers-color-scheme: dark)"`) come after the others of the
+   same rank. Try them best first, giving up on a kind after two failures (some apps list icons
+   that do not exist).
+5. Try `/favicon.ico` on the requested site, with the same no-other-site rule. If it answers with
+   an HTML page instead of an image (often the app's 404 page), read the icons that page declares.
+   TeamCity behind a login works this way: its home page is a bare 401, but its 404 page names its
+   icon.
 6. Accept a response only if it succeeded and its bytes are a real image. Many sites answer a
    missing icon with an HTML page and status 200.
-7. If the site gives nothing, ask Google's favicon service, ignoring its 16px placeholder globe.
+7. If the site gives nothing, ask Google's favicon service, ignoring its placeholder globe.
 
-Found icons are cached for 30 days, misses for 7. Browsers cache icons for 7 days and misses for 1.
+Found icons are cached for 30 days, misses for 7. A site that did not answer at all (DNS or
+network failure, 5xx, timeout) is not cached, so a blip is not remembered for a week. Browsers
+cache icons for 7 days, misses for a day, and unanswered lookups for an hour.
 
 ## Safety
 
@@ -57,7 +71,8 @@ should not go:
 - Only `http`/`https`, default ports, no credentials in the URL.
 - Hostnames only: IP addresses (`127.0.0.1`, `169.254.169.254`, `0x7f000001`, `[::1]`, …),
   `localhost`, and private-use suffixes (`.local`, `.internal`, `.lan`, `.home.arpa`, …) are refused.
-- Redirects are followed by hand, at most 5, and every hop is checked again.
+- Redirects are followed by hand, at most 5, and every hop is checked again. Pages are refused
+  before they are requested when a hop leaves the requested site.
 - Each request times out after 4 seconds and a lookup after 10. Pages are read up to 512 KB,
   icons up to 512 KB.
 - Icons are served from the Worker's own domain with
@@ -113,8 +128,10 @@ pnpm lint:check
 pnpm typecheck
 ```
 
-`src/resolver/` has no Cloudflare dependency. `resolveFavicon(hostname, { fetch })` runs in any
-runtime with `fetch` (Node, Bun, Deno, Workers).
+`src/resolver/` is the library and has no Cloudflare dependency; `src/worker/` is the Worker around it. `resolveFavicon(hostname, { fetch, size })` runs in
+any runtime with `fetch` (Node, Bun, Deno, Workers) and returns `{ icon }` or
+`{ icon: null, reason }`, where `reason` is `none` (the site answered but has nothing) or `error`
+(it did not answer; worth retrying).
 
 ## Limits
 

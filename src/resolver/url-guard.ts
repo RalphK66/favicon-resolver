@@ -20,3 +20,39 @@ export const isFetchableUrl = (url: URL) =>
   !url.password &&
   DEFAULT_PORTS.has(url.port) &&
   isPublicHostname(url.hostname)
+
+/** True when `host` is `parent` itself or a subdomain of it. */
+export const isHostOrSubdomain = (host: string, parent: string) =>
+  host === parent || host.endsWith(`.${parent}`)
+
+/**
+ * True when `host` belongs to the requested site: the host itself, a subdomain, or the bare domain
+ * when `www.` was requested. Any other parent is refused, because on shared platforms it is the
+ * platform's own site (`app.vercel.app` → `vercel.app`), whose icon would be the wrong one.
+ */
+export const isSameSite = (requested: string, host: string) =>
+  isHostOrSubdomain(host, requested) || requested === `www.${host}`
+
+/**
+ * The public hostname named by a request path: `github.com`, `GitHub.com.`, `github.com/foo`,
+ * `https://github.com/foo`, or `münchen.de` (returned as punycode). Null for anything else.
+ */
+export const hostnameOf = (path: string): string | null => {
+  let text = path
+  try {
+    text = decodeURIComponent(path)
+  } catch {
+    // Keep the raw text; an invalid escape fails the hostname check below.
+  }
+  // Catch-all routes collapse `https://` to `https:/`.
+  text = text.trim().replace(/^\/+/, '')
+  const url = /^https?:\/{1,2}/i.test(text)
+    ? text.replace(/^(https?:)\/+/i, '$1//')
+    : `https://${text}`
+  try {
+    const hostname = new URL(url).hostname.replace(/\.$/, '')
+    return isPublicHostname(hostname) ? hostname : null
+  } catch {
+    return null
+  }
+}
