@@ -145,6 +145,14 @@ const fromFaviconIco = async (
 }
 
 /**
+ * True when `final` is the requested host, a subdomain of it, or a parent of it
+ * (`example.com` ↔ `www.example.com`). A redirect anywhere else is usually a login page on another
+ * site (`id.atlassian.com`, an Okta or Microsoft sign-in), whose icon would be the wrong one.
+ */
+const isSameSite = (requested: string, final: string) =>
+  final === requested || final.endsWith(`.${requested}`) || requested.endsWith(`.${final}`)
+
+/**
  * Finds the best icon for a hostname: the icons its home page declares (and its web app
  * manifest), then `/favicon.ico` (or the icons its error page declares), then Google's favicon
  * service. Returns the original bytes and their sniffed type, or null when nothing usable was found.
@@ -157,7 +165,10 @@ export const resolveFavicon = async (
   const signal = AbortSignal.timeout(DEADLINE_MS)
   const tried = new Set<string>()
 
-  const page = await fetchPage(hostname, fetch, signal)
+  // Icons only ever come from the requested site. A home page that redirects to another site
+  // (typically a login) is ignored, and the requested host's own /favicon.ico is tried instead.
+  const fetched = await fetchPage(hostname, fetch, signal)
+  const page = fetched && isSameSite(hostname, fetched.url.hostname) ? fetched : null
   if (page) {
     const candidates = await candidatesFromPage(page, fetch, signal)
     const icon = await firstWorkingIcon(candidates, tried, fetch, signal)

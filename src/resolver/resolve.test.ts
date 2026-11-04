@@ -138,6 +138,29 @@ describe('resolveFavicon', () => {
     expect(await resolveFavicon('example.com', { fetch, siteOnly: true })).toBeNull()
   })
 
+  it("ignores a login page on another site and uses the requested host's /favicon.ico", async () => {
+    const { fetch, requested } = fakeFetch({
+      'https://team.example.net/': {
+        status: 302,
+        headers: { location: 'https://id.login.example/sso' },
+      },
+      'https://id.login.example/sso': html('<link rel="icon" href="/login-provider.png">'),
+      'https://team.example.net/favicon.ico': { body: new Uint8Array([0, 0, 1, 0, 1, 0, 48, 48]) },
+    })
+    expect(await resolveFavicon('team.example.net', { fetch })).toMatchObject({ type: 'ico' })
+    expect(requested).not.toContain('https://id.login.example/login-provider.png')
+    expect(requested).not.toContain('https://id.login.example/favicon.ico')
+  })
+
+  it('still follows redirects within the same site', async () => {
+    const { fetch } = fakeFetch({
+      'https://example.com/': { status: 301, headers: { location: 'https://www.example.com/' } },
+      'https://www.example.com/': html('<link rel="icon" href="/i.svg">'),
+      'https://www.example.com/i.svg': { body: svg },
+    })
+    expect(await resolveFavicon('example.com', { fetch })).toMatchObject({ type: 'svg' })
+  })
+
   it('falls back to Google, but not to its 16px placeholder', async () => {
     const found = fakeFetch({ [google('example.com')]: { body: pngBytes(64, 64) } })
     expect(await resolveFavicon('example.com', { fetch: found.fetch })).toMatchObject({

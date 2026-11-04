@@ -30,14 +30,17 @@ The `X-Favicon-Source` header says where the icon came from: `site` or `google`.
 
 1. Fetch the home page (`https://`, then `http://`, then `https://www.`), following redirects. If
    none answers successfully, use the first error page: apps behind a login often still send
-   their usual HTML, icon links included, with a 401 or 403.
+   their usual HTML, icon links included, with a 401 or 403. Icons only ever come from the
+   requested site: if the home page redirects to another site (usually a login page, such as
+   `id.atlassian.com` or an Okta or Microsoft sign-in), that page is ignored, so a bookmark never
+   gets the login provider's logo.
 2. Read `<link rel="icon">`, `<link rel="apple-touch-icon">`, and `<base href>` from `<head>`,
    resolving relative URLs against the final page URL.
 3. If nothing large or scalable is declared, read the web app manifest's icons.
 4. Rank them: a raster of 64px or more (smallest first), then SVG, then apple-touch and manifest
    icons, then icons with no declared size, then smaller rasters. Try them best first, giving up on
    a kind after two failures (some apps list icons that do not exist).
-5. Try `/favicon.ico`. If it answers with an HTML page instead of an image (often the app's 404
+5. Try `/favicon.ico` on the requested site. If it answers with an HTML page instead of an image (often the app's 404
    page), read the icons that page declares. TeamCity behind a login works this way: its home page
    is a bare 401, but its 404 page names its icon.
 6. Accept a response only if it succeeded and its bytes are a real image. Many sites answer a
