@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "platformAutomerge": false,
+  "semanticCommits": "disabled",
+  "packageRules": [
+    {
+      "description": "Minor and patch updates merge themselves once CI passes",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Runtime dependencies: one weekly group",
+      "matchDepTypes": ["dependencies"],
+      "groupName": "app dependencies"
+    },
+    {
+      "description": "Tooling and types: one weekly group",
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "dev dependencies"
+    },
+    {
+      "description": "Vite+ and Void move together",
+      "matchPackageNames": ["vite-plus", "vite", "@voidzero-dev/**", "void", "@void/**"],
+      "groupName": "Vite+ and Void"
+    },
+    {
+      "description": "GitHub Actions in one group",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Major versions always wait for the maintainer",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}

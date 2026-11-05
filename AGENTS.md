@@ -31,6 +31,13 @@ or 404. See `README.md` for behavior and the safety rules.
 - Owner-specific details (live URL, who uses it, open decisions) are in `NOTES.local.md`, which is
   git-ignored. Read it if it exists; never commit it
 
+## Dependencies and CI
+
+- Install with `vp install` (Vite+ runs pnpm underneath; also `vp add`, `vp update`, `vp outdated`). Node comes from `.node-version`
+- CI (`.github/workflows/ci.yml`) sets up with `voidzero-dev/setup-vp` and runs lint, typecheck, tests, and build on every push and PR to `main`. It needs no secrets
+- Renovate (`renovate.json`) opens grouped PRs every Monday morning and merges minor and patch updates by itself once CI passes; major versions wait for a manual merge. The Dependency Dashboard issue lists everything pending
+- Merged updates reach Cloudflare only on the next `pnpm exec void deploy`
+
 ## Git
 
 Commits use the maintainer's personal email, set in this repo's `.git/config`. The machine's global
